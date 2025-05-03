@@ -1,0 +1,5 @@
+problem_images/*
+temp_exposure/*
+similar_images/group_*/*
+.DS_Store
+/data/*
