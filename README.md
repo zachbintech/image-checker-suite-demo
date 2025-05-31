@@ -13,3 +13,6 @@ pip install -r requirements.txt
 # run (locally)
 streamlit run app.py
 
+
+# Run Tests locally
+ python3 -m unittest discover -s tests

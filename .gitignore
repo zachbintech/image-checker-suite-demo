@@ -3,3 +3,7 @@ temp_exposure/*
 similar_images/group_*/*
 .DS_Store
 /data/*
+photoenv/**
+__pycache__/*
+*.pyc
+temp_test_images/*.jpg

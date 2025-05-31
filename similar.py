@@ -1,58 +1,120 @@
 import cv2
+import numpy as np
 import os
 import shutil
+from PIL import Image
+import imagehash
 
-# Initialize ORB detector
-orb = cv2.ORB_create()
 
-def get_descriptors(image_path):
-    img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
-    if img is None:
-        return None
-    keypoints, descriptors = orb.detectAndCompute(img, None)
+sift = cv2.SIFT_create()
+
+def get_descriptors(image):
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    keypoints, descriptors = sift.detectAndCompute(gray, None)
     return descriptors
 
 def match_descriptors(desc1, desc2):
     if desc1 is None or desc2 is None:
         return 0
-    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-    matches = bf.match(desc1, desc2)
-    return len(matches)
+    bf = cv2.BFMatcher()
+    matches = bf.knnMatch(desc1, desc2, k=2)
+    # Lowe's ratio test
+    good_matches = [m for m, n in matches if m.distance < 0.75 * n.distance]
+    return len(good_matches)
 
-# Path to your images
-folder_path = "../data/oldphotos"
-output_folder = "similar_images"
-os.makedirs(output_folder, exist_ok=True)
 
-# Extract descriptors from all images
-image_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith(('jpg', 'png', 'jpeg'))]
-descriptors_list = [get_descriptors(p) for p in image_files]
+def get_hash_difference(image1, image2):
+    """
+    Calculate the perceptual hash difference between two images.
 
-# Create a dictionary to store groups
-groups = []
-visited = [False] * len(image_files)
+    Args:
+        image1 (numpy.ndarray): First image as a NumPy array.
+        image2 (numpy.ndarray): Second image as a NumPy array.
 
-# Group similar images
-threshold_matches = 210  # adjust depending on how "strict" you want. Higher means more similar.
+    Returns:
+        int: The Hamming distance between the perceptual hashes of the two images.
+    """
+    # Convert images to PIL format
+    pil_image1 = Image.fromarray(cv2.cvtColor(image1, cv2.COLOR_BGR2RGB))
+    pil_image2 = Image.fromarray(cv2.cvtColor(image2, cv2.COLOR_BGR2RGB))
 
-for i in range(len(image_files)):
-    if visited[i]:
-        continue
-    group = [image_files[i]]
-    visited[i] = True
-    for j in range(i + 1, len(image_files)):
-        if visited[j]:
+    # Compute perceptual hashes
+    hash1 = imagehash.phash(pil_image1)
+    hash2 = imagehash.phash(pil_image2)
+
+    # Return the Hamming distance between the hashes
+    return hash1 - hash2
+
+
+
+
+def compute_and_store_hashes(image_dir):
+    """
+    Compute and store perceptual hashes for all images in a directory.
+
+    Args:
+        image_dir (str): Path to the directory containing images.
+
+    Returns:
+        dict: A dictionary where keys are image file names and values are their perceptual hashes.
+    """
+    hashes = {}
+    for filename in os.listdir(image_dir):
+        file_path = os.path.join(image_dir, filename)
+        if os.path.isfile(file_path) and filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff')):
+            image = cv2.imread(file_path)
+            pil_image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+            hashes[filename] = imagehash.phash(pil_image)
+    return hashes
+
+
+def group_images_by_hash(hashes, threshold=5):
+    """
+    Group images based on perceptual hash differences.
+
+    Args:
+        hashes (dict): A dictionary where keys are image file names and values are their perceptual hashes.
+        threshold (int): Maximum Hamming distance to consider images as similar.
+
+    Returns:
+        list: Groups of similar images, where each group is a list of image file names.
+    """
+    groups = []
+    visited = set()
+
+    for image1, hash1 in hashes.items():
+        if image1 in visited:
             continue
-        num_matches = match_descriptors(descriptors_list[i], descriptors_list[j])
-        if num_matches > threshold_matches:
-            group.append(image_files[j])
-            visited[j] = True
-    groups.append(group)
+        group = [image1]
+        visited.add(image1)
+        for image2, hash2 in hashes.items():
+            if image2 in visited:
+                continue
+            if abs(hash1 - hash2) <= threshold:
+                group.append(image2)
+                visited.add(image2)
+        groups.append(group)
 
-# Create a new directory for each group and move the images
-for idx, group in enumerate(groups):
-    group_dir = os.path.join(output_folder, f"group_{idx + 1}")
-    os.makedirs(group_dir, exist_ok=True)
-    for img_path in group:
-        shutil.copy(img_path, group_dir)
-        print(f"Moved {img_path} to {group_dir}")
+    return groups
+
+import os
+
+def process_and_group_images(directory, threshold=5):
+    """
+    Compute hashes for images in a directory and group them by similarity.
+
+    Args:
+        directory (str): Path to the directory containing images.
+        threshold (int): Threshold for grouping similar images.
+
+    Returns:
+        list: A list of groups, where each group is a list of image filenames.
+    """
+    if not os.path.isdir(directory):
+        raise ValueError(f"The provided path '{directory}' is not a valid directory.")
+
+    # Compute hashes and group images
+    hashes = compute_and_store_hashes(directory)
+    groups = group_images_by_hash(hashes, threshold=threshold)
+    return groups
+
