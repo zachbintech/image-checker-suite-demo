@@ -7,3 +7,4 @@ photoenv/**
 __pycache__/*
 *.pyc
 temp_test_images/*.jpg
+real_images/*.jpg

@@ -10,7 +10,7 @@ class TestFindDuplicateImagesInDirectory(unittest.TestCase):
         """
         Set up a directory named 'similar_images' with test images.
         """
-        self.test_dir = "similar_images"
+        self.test_dir = os.path.abspath("similar_images")  # Use absolute path
         os.makedirs(self.test_dir, exist_ok=True)
 
         # Create dummy images
@@ -35,15 +35,33 @@ class TestFindDuplicateImagesInDirectory(unittest.TestCase):
         similarities = find_duplicate_images_in_directory(self.test_dir)
 
         # Normalize paths for comparison
-        image1_path = os.path.abspath(os.path.join(self.test_dir, "image1.jpg"))
-        image2_path = os.path.abspath(os.path.join(self.test_dir, "image2.jpg"))
-        image3_path = os.path.abspath(os.path.join(self.test_dir, "image3.jpg"))
+        image1_path = os.path.join(self.test_dir, "image1.jpg")
+        image2_path = os.path.join(self.test_dir, "image2.jpg")
+        image3_path = os.path.join(self.test_dir, "image3.jpg")
 
         # Check that the similarity between image1 and image2 is high (close to 1)
-        self.assertGreater(similarities[(image1_path, image2_path)], 0.9)
+        self.assertGreater(similarities[frozenset([image1_path, image2_path])], 0.9)
 
         # Check that the similarity between image1 and image3 is low
-        self.assertLess(similarities[(image1_path, image3_path)], 0.5)
+        self.assertLess(similarities[frozenset([image1_path, image3_path])], 0.5)
+
+
+
+    def test_real_images(self):
+        """
+        Test the find_duplicate_images_in_directory function with real images.
+        """
+        # Use a directory with real images, e.g., 'real_images'
+        real_images_dir = os.path.abspath("real_images")
+
+        similarities = find_duplicate_images_in_directory(real_images_dir)
+
+        # print out similarty values for debugging, just the average similarity
+        avg_similarity = sum(similarities.values()) / len(similarities) if similarities else 0
+        print(f"Average similarity for real images: {avg_similarity:.2f}")
+
+
+
 
 if __name__ == "__main__":
     unittest.main()

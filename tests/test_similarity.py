@@ -3,8 +3,7 @@ import cv2
 import numpy as np
 import os
 import shutil
-from similar import (compute_and_store_hashes, group_images_by_hash,
-                     group_similar_images_in_memory, get_hash_difference, process_and_group_images)
+from similar import (compute_and_store_hashes, group_images_by_hash, get_hash_difference, process_and_group_images)
 
 
 class TestImageSimilarity(unittest.TestCase):
@@ -35,19 +34,7 @@ class TestImageSimilarity(unittest.TestCase):
         cv2.destroyAllWindows()
 
 
-    def test_no_similar_images(self):
-        # Test when no images are similar
-        groups = group_similar_images_in_memory(self.images, threshold_matches=100)
-        self.assertEqual(len(groups), 3)
-        self.assertEqual(groups[0], ["image1"])
-        self.assertEqual(groups[1], ["image2"])
-        self.assertEqual(groups[2], ["image3"])
-
-    def test_all_images_similar(self):
-        # Test when all images are considered similar
-        groups = group_similar_images_in_memory(self.images, threshold_matches=0)
-        self.assertEqual(len(groups), 1)
-        self.assertEqual(set(groups[0]), {"image1", "image2", "image3"})
+   
 
     def test_hash_difference(self):
         """

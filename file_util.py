@@ -1,7 +1,6 @@
 import cv2
 import os
 
-from similar import group_similar_images_in_memory
 
 def load_images_from_directory(directory_path):
     """
@@ -26,7 +25,3 @@ def load_images_from_directory(directory_path):
 
 directory_path = "./similar_images"  # Replace with the path to your image directory
 images = load_images_from_directory(directory_path)
-
-# Test the group_similar_images_in_memory function
-groups = group_similar_images_in_memory(images, threshold_matches=68)
-print("Grouped Images:", groups)
