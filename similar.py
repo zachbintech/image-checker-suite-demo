@@ -309,3 +309,30 @@ def find_duplicate_images_in_directory(directory_path, hash_threshold=5, similar
     return similarities
 
 
+
+
+def get_all_image_paths_recursive(root_dir):
+    image_paths = []
+    for dirpath, _, filenames in os.walk(root_dir):
+        for f in filenames:
+            if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif')):
+                image_paths.append(os.path.join(dirpath, f))
+    return image_paths
+
+
+def compute_and_store_hashes_from_paths(image_paths):
+    hashes = {}
+    for path in image_paths:
+        image = cv2.imread(path)
+        if image is not None:
+            pil_image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+            hashes[path] = imagehash.phash(pil_image)
+    return hashes
+
+
+def process_and_group_images_recursive(directory, threshold=5):
+    image_paths = get_all_image_paths_recursive(directory)
+    hashes = compute_and_store_hashes_from_paths(image_paths)
+    return group_images_by_hash(hashes, threshold)
+
+    
