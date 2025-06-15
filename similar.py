@@ -11,6 +11,20 @@ import numpy as np
 import os
 from dino_embeddings import compute_embedding  # Import the function from dino_embedding.py
 
+import os
+import cv2
+import torch
+import numpy as np
+from PIL import Image
+import imagehash
+from sklearn.metrics.pairwise import cosine_similarity
+# Optional PCA support
+# from sklearn.decomposition import PCA
+# from sklearn.preprocessing import normalize
+
+from dino_embeddings import compute_embedding  # Import your DINOv2 embedding function
+
+
 sift = cv2.SIFT_create()
 
 
@@ -155,4 +169,143 @@ def process_and_group_images(directory, threshold=5):
     hashes = compute_and_store_hashes(directory)
     groups = group_images_by_hash(hashes, threshold=threshold)
     return groups
+
+
+
+
+def compute_and_store_hashes(image_paths):
+    """
+    Compute perceptual hashes (phash) for each image.
+
+    Args:
+        image_paths (list): List of image file paths.
+
+    Returns:
+        dict: A dictionary mapping image paths to their phash.
+    """
+    hashes = {}
+    for path in image_paths:
+        pil_image = Image.open(path)
+        hashes[path] = imagehash.phash(pil_image)
+    return hashes
+
+
+def group_images_by_hash(hashes, threshold=5):
+    """
+    Group images based on perceptual hash differences.
+
+    Args:
+        hashes (dict): Mapping from image paths to phashes.
+        threshold (int): Maximum Hamming distance to group images.
+
+    Returns:
+        list: Groups of similar images based on hashing.
+    """
+    groups = []
+    visited = set()
+
+    for image1, hash1 in hashes.items():
+        if image1 in visited:
+            continue
+        group = [image1]
+        visited.add(image1)
+        for image2, hash2 in hashes.items():
+            if image2 in visited:
+                continue
+            if abs(hash1 - hash2) <= threshold:
+                group.append(image2)
+                visited.add(image2)
+        groups.append(group)
+
+    return groups
+
+
+def compute_image_embeddings(image_paths):
+    """
+    Compute DINOv2 embeddings for a list of image paths.
+
+    Args:
+        image_paths (list): List of image file paths.
+
+    Returns:
+        dict: Mapping from image paths to their embedding vectors.
+    """
+    return {path: compute_embedding(path) for path in image_paths}
+
+
+def compute_cosine_similarities(embeddings, similarity_threshold=0.9):
+    """
+    Compute pairwise cosine similarity between embeddings.
+
+    Args:
+        embeddings (dict): Mapping from image paths to embedding vectors.
+        similarity_threshold (float): Threshold above which images are considered similar.
+
+    Returns:
+        dict: Similar image pairs and their similarity score.
+    """
+    similarities = {}
+    image_list = list(embeddings.keys())
+
+    for i in range(len(image_list)):
+        for j in range(i + 1, len(image_list)):
+            path1, path2 = image_list[i], image_list[j]
+            
+            # Flatten embeddings to ensure they are 1D
+            embedding1 = embeddings[path1].flatten()
+            embedding2 = embeddings[path2].flatten()
+            
+            sim = cosine_similarity([embedding1], [embedding2])[0][0]
+            if sim >= similarity_threshold:
+                similarities[frozenset([path1, path2])] = sim
+                print(f"Similarity between {path1} and {path2}: {sim:.4f}")
+    return similarities
+
+
+def find_duplicate_images_in_directory(directory_path, hash_threshold=5, similarity_threshold=0.9):
+    """
+    Full pipeline: Detect near-duplicate images using hash filtering and DINO embedding similarity.
+
+    Args:
+        directory_path (str): Path to the image directory.
+        hash_threshold (int): Max phash Hamming distance for grouping.
+        similarity_threshold (float): Cosine similarity threshold for duplicates.
+
+    Returns:
+        dict: Similar image pairs with similarity scores.
+    """
+    # Step 1: Gather image paths
+    image_paths = [
+        os.path.abspath(os.path.join(directory_path, file))
+        for file in os.listdir(directory_path)
+        if file.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))
+    ]
+
+    if not image_paths:
+        print("No valid image files found in directory.")
+        return {}
+
+    # Step 2: Compute perceptual hashes
+    hashes = compute_and_store_hashes(image_paths)
+
+    # Step 3: Group images that are visually similar based on hash
+    grouped_images = group_images_by_hash(hashes, threshold=hash_threshold)
+
+    # Step 4: Flatten grouped images and remove duplicates
+    unique_images = sorted({img for group in grouped_images for img in group})
+
+    # Step 5: Compute DINOv2 embeddings
+    embeddings = compute_image_embeddings(unique_images)
+
+    # (Optional) PCA normalization - uncomment to use
+    # vectors = np.vstack(list(embeddings.values()))
+    # pca = PCA(n_components=100).fit_transform(vectors)
+    # normalized = normalize(pca)
+    # embeddings = {k: normalized[i] for i, k in enumerate(embeddings)}
+
+    # Step 6: Compute cosine similarities
+    similarities = compute_cosine_similarities(embeddings, similarity_threshold)
+
+    return similarities
+
 
