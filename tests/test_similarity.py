@@ -3,8 +3,7 @@ import cv2
 import numpy as np
 import os
 import shutil
-from similar import (compute_and_store_hashes, group_images_by_hash, get_hash_difference, process_and_group_images)
-
+from similar import get_hash_difference, find_duplicate_images_in_directory, process_and_group_images
 
 class TestImageSimilarity(unittest.TestCase):
 
@@ -50,6 +49,22 @@ class TestImageSimilarity(unittest.TestCase):
 
         print(f"Hash difference between image1 and image2: {diff1}")
         print(f"Hash difference between image1 and image3: {diff2}")
+
+
+    def test_real_images(self):
+            """
+            Test the find_duplicate_images_in_directory function with real images.
+            """
+            # Use a directory with real images, e.g., 'real_images'
+            real_images_dir = os.path.abspath("real_images")
+
+            similarities = find_duplicate_images_in_directory(real_images_dir)
+
+            # print out similarty values for debugging, just the average similarity
+            avg_similarity = sum(similarities.values()) / len(similarities) if similarities else 0
+            print(f"Average similarity for real images: {avg_similarity:.2f}")
+
+
 
     def test_group_images_by_hash(self):
         """
