@@ -31,11 +31,14 @@ def detect_fft_artifacts(gray, debug=False):
     edges = cv2.Canny(img_back, 50, 150)
     line_score = np.mean(edges) / 255
 
+
+
     if debug:
         cv2.imshow("FFT Suppressed Back Projection", img_back)
         cv2.imshow("FFT Band Edges", edges)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
+        print(f"FFT Line Score: {line_score:.2f}")
 
     return line_score > FFT_LINE_SCORE_THRESHOLD
 
@@ -85,17 +88,17 @@ def detect_dust_or_artifacts(image_path, debug=False, save_vis=False, output_dir
     issues_detected = False
     vis = image.copy()
 
-    # 1. Dust detection
-    dust_mask = cv2.adaptiveThreshold(norm, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
-                                      cv2.THRESH_BINARY_INV, 15, 10)
-    dust_mask = cv2.morphologyEx(dust_mask, cv2.MORPH_OPEN,
-                                  np.ones((3, 3), np.uint8), iterations=1)
-    contours, _ = cv2.findContours(dust_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    dust_contours = [cnt for cnt in contours if DUST_MIN_AREA < cv2.contourArea(cnt) < DUST_MAX_AREA]
-    if dust_contours:
-        issues_detected = True
-        for cnt in dust_contours:
-            cv2.drawContours(vis, [cnt], -1, (0, 0, 255), 1)
+    # # 1. Dust detection
+    # dust_mask = cv2.adaptiveThreshold(norm, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
+    #                                   cv2.THRESH_BINARY_INV, 15, 10)
+    # dust_mask = cv2.morphologyEx(dust_mask, cv2.MORPH_OPEN,
+    #                               np.ones((3, 3), np.uint8), iterations=1)
+    # contours, _ = cv2.findContours(dust_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # dust_contours = [cnt for cnt in contours if DUST_MIN_AREA < cv2.contourArea(cnt) < DUST_MAX_AREA]
+    # if dust_contours:
+    #     issues_detected = True
+    #     for cnt in dust_contours:
+    #         cv2.drawContours(vis, [cnt], -1, (0, 0, 255), 1)
 
     # 2. FFT banding detection
     fft_issue = detect_fft_artifacts(gray, debug=debug)
@@ -105,18 +108,20 @@ def detect_dust_or_artifacts(image_path, debug=False, save_vis=False, output_dir
                     (0, 255, 255), 2)
 
     # 3. Scanner banding: edge + line orientation filtering
-    sobelx = cv2.Sobel(norm, cv2.CV_64F, 1, 0, ksize=3)
-    sobely = cv2.Sobel(norm, cv2.CV_64F, 0, 1, ksize=3)
-    edge_mag = np.sqrt(sobelx**2 + sobely**2).astype(np.uint8)
+    # sobelx = cv2.Sobel(norm, cv2.CV_64F, 1, 0, ksize=3)
+    # sobely = cv2.Sobel(norm, cv2.CV_64F, 0, 1, ksize=3)
+    # edge_mag = np.sqrt(sobelx**2 + sobely**2).astype(np.uint8)
 
-    lines = cv2.HoughLinesP(edge_mag, 1, np.pi/180, threshold=150,
-                            minLineLength=100, maxLineGap=5)
-    filtered_lines = filter_lines_by_angle(lines, angle_range=(85, 95))  # vertical lines
-    if filtered_lines:
-        issues_detected = True
-        for line in filtered_lines:
-            x1, y1, x2, y2 = line[0]
-            cv2.line(vis, (x1, y1), (x2, y2), (0, 255, 255), 1)
+    # lines = cv2.HoughLinesP(edge_mag, 1, np.pi/180, threshold=500,
+    #                         minLineLength=100, maxLineGap=5)
+    
+    # filtered_lines = filter_lines_by_angle(lines, angle_range=(88, 92))  # vertical lines TODO should also check for horizontal lines
+    # if filtered_lines:
+    #     issues_detected = True
+    #     for line in filtered_lines:
+    #         x1, y1, x2, y2 = line[0]
+    #         cv2.line(vis, (x1, y1), (x2, y2), (0, 255, 255), 1)
+    # End of scanner banding detection
 
     # # 4. Channel anomalies
     # channel_issue = detect_channel_artifacts(image, debug=debug)
@@ -125,12 +130,12 @@ def detect_dust_or_artifacts(image_path, debug=False, save_vis=False, output_dir
     #     cv2.putText(vis, "Channel Artifact", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1,
     #                 (255, 0, 255), 2)
 
-    # 5. Scratches / tear edges (basic)
-    edges = cv2.Canny(norm, 50, 150)
-    scratch_density = np.mean(edges) / 255
-    if scratch_density > SCRATCH_DENSITY_THRESHOLD:
-        issues_detected = True
-        vis[edges > 0] = [255, 0, 255]
+    # # 5. Scratches / tear edges (basic)
+    # edges = cv2.Canny(norm, 50, 150)
+    # scratch_density = np.mean(edges) / 255
+    # if scratch_density > SCRATCH_DENSITY_THRESHOLD:
+    #     issues_detected = True
+    #     vis[edges > 0] = [255, 0, 255]
 
     if debug:
         cv2.imshow("Detected Artifacts", cv2.resize(vis, (800, int(800 * image.shape[0] / image.shape[1]))))
@@ -167,6 +172,6 @@ if __name__ == "__main__":
 
     print(f"🔍 Scanning {len(image_paths)} images...\n")
     for path in image_paths:
-        has_issues = detect_dust_or_artifacts(path, debug=False, save_vis=True, output_dir=OUTPUT_DIR)
+        has_issues = detect_dust_or_artifacts(path, debug=True, save_vis=True, output_dir=OUTPUT_DIR)
         status = "❌ Issue Detected" if has_issues else "✅ Clean"
         print(f"{status}: {path}")
