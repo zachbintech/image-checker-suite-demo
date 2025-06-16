@@ -11,3 +11,4 @@ real_images/*.jpg
 grouped_output/**
 real_images/multiple_photo/*.jpg
 report.csv
+artifact_overlays/*.jpg
