@@ -24,10 +24,14 @@ def export_grouped_images(groups, output_dir):
     """
     Export grouped images to subdirectories for manual inspection.
     Each group gets its own folder named 'group_<n>'.
+    Only groups with more than one image are exported.
     """
     os.makedirs(output_dir, exist_ok=True)
 
     for i, group in enumerate(groups):
+        if len(group) <= 1:  # Skip groups with only one image
+            continue
+
         group_dir = os.path.join(output_dir, f"group_{i+1}")
         os.makedirs(group_dir, exist_ok=True)
 

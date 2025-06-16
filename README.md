@@ -16,3 +16,7 @@ streamlit run app.py
 
 # Run Tests locally
  python3 -m unittest discover -s tests
+
+ 
+ # Test real image groupings
+ python /home/zach/Documents/dev/image-checker-suite-demo/evaluate_groupsing.py

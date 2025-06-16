@@ -9,3 +9,5 @@ __pycache__/*
 temp_test_images/*.jpg
 real_images/*.jpg
 grouped_output/**
+real_images/multiple_photo/*.jpg
+report.csv
