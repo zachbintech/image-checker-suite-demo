@@ -5,9 +5,49 @@ import os
 # Threshold constants
 DUST_MIN_AREA = 200  # Minimum contour area for dust detection
 DUST_MAX_AREA = 500  # Maximum contour area for dust detection
-FFT_LINE_SCORE_THRESHOLD = 0.6  # Threshold for FFT banding detection
+FFT_LINE_SCORE_THRESHOLD = 0.04  # Threshold for FFT banding detection
 SCRATCH_DENSITY_THRESHOLD = 0.6  # Threshold for scratch detection
 CHANNEL_ANOMALY_THRESHOLD = 0.9  # Threshold for channel anomaly detection
+COLOR_STREAK_THRESHOLD = 30  # Adjust as needed for channel diff threshold
+WIDE_BAND_THRESHOLD = 25  # Threshold for wide color banding detection
+
+
+def detect_wide_color_banding(image, debug=False):
+    h, w, _ = image.shape
+    image_blur = cv2.GaussianBlur(image, (5, 5), 0)
+
+    # Normalize each channel to account for global exposure
+    b, g, r = cv2.split(image_blur)
+    b_mean = np.mean(b, axis=0)
+    g_mean = np.mean(g, axis=0)
+    r_mean = np.mean(r, axis=0)
+
+    # Stack as (w, 3)
+    col_means = np.stack([b_mean, g_mean, r_mean], axis=-1)
+
+    # Smooth with wider kernel to find slow trends
+    col_means_smooth = cv2.blur(col_means.astype(np.float32), (25, 1))  # horizontal blur
+
+    # Difference from smoothed baseline
+    diff = np.abs(col_means - col_means_smooth)
+
+    # Threshold: any column with > threshold diff in R, G, or B
+    band_mask = np.any(diff > WIDE_BAND_THRESHOLD, axis=-1)  # shape: (w,)
+    print("DIFF SHAPE:", diff.shape, "BAND MASK SHAPE:", band_mask.shape)
+    print("DIFF: ", diff)
+
+    if debug:
+        band_vis = image.copy()
+        for x in range(w):
+            if band_mask[x]:
+                cv2.line(band_vis, (x, 0), (x, h-1), (0, 0, 255), 1)
+        cv2.imshow("Wide Band Detection", band_vis)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+    # If 10+ vertical lines deviate, we assume a band exists
+    return np.count_nonzero(band_mask) > WIDE_BAND_THRESHOLD
+
 
 def detect_fft_artifacts(gray, debug=False):
     rows, cols = gray.shape
@@ -75,6 +115,32 @@ def detect_channel_artifacts(image, debug=False):
     return anomaly_score > CHANNEL_ANOMALY_THRESHOLD
 
 
+
+def detect_colored_vertical_streaks(image, debug=False):
+    h, w, _ = image.shape
+    streak_mask = np.zeros((h, w), dtype=np.uint8)
+
+    b, g, r = cv2.split(image)
+
+    for channel, name in zip([b, g, r], ['blue', 'green', 'red']):
+        diff = cv2.absdiff(channel, cv2.medianBlur(channel, 5))
+        _, binary = cv2.threshold(diff, COLOR_STREAK_THRESHOLD, 255, cv2.THRESH_BINARY)
+
+        vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 20))
+        vertical_lines = cv2.morphologyEx(binary, cv2.MORPH_OPEN, vertical_kernel)
+
+        streak_mask = cv2.bitwise_or(streak_mask, vertical_lines)
+
+        # Visualization on top of the original image
+        if debug:
+            vis = image.copy()
+            vis[vertical_lines > 0] = [0, 255, 255]  # Highlight streaks in yellow
+            cv2.imshow(f"{name} channel streaks", vis)
+            cv2.waitKey(0)
+
+    return np.count_nonzero(streak_mask) > 0
+
+
 def detect_dust_or_artifacts(image_path, debug=False, save_vis=False, output_dir=None):
     image = cv2.imread(image_path, cv2.IMREAD_COLOR)
     if image is None:
@@ -100,12 +166,12 @@ def detect_dust_or_artifacts(image_path, debug=False, save_vis=False, output_dir
     #     for cnt in dust_contours:
     #         cv2.drawContours(vis, [cnt], -1, (0, 0, 255), 1)
 
-    # 2. FFT banding detection
-    fft_issue = detect_fft_artifacts(gray, debug=debug)
-    if fft_issue:
-        issues_detected = True
-        cv2.putText(vis, "FFT Banding", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1,
-                    (0, 255, 255), 2)
+    # # 2. FFT banding detection
+    # fft_issue = detect_fft_artifacts(gray, debug=debug)
+    # if fft_issue:
+    #     issues_detected = True
+    #     cv2.putText(vis, "FFT Banding", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1,
+    #                 (0, 255, 255), 2)
 
     # 3. Scanner banding: edge + line orientation filtering
     # sobelx = cv2.Sobel(norm, cv2.CV_64F, 1, 0, ksize=3)
@@ -137,10 +203,26 @@ def detect_dust_or_artifacts(image_path, debug=False, save_vis=False, output_dir
     #     issues_detected = True
     #     vis[edges > 0] = [255, 0, 255]
 
-    if debug:
-        cv2.imshow("Detected Artifacts", cv2.resize(vis, (800, int(800 * image.shape[0] / image.shape[1]))))
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        # 7. Faint wide vertical banding
+    wide_band_issue = detect_wide_color_banding(image, debug=debug)
+    if wide_band_issue:
+        issues_detected = True
+        cv2.putText(vis, "Wide Color Band", (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 1,
+                    (0, 0, 255), 2)
+
+
+    # # 6. Colored scanner streaks (red/magenta etc.)
+    # color_streak_issue = detect_colored_vertical_streaks(image, debug=debug)
+    # if color_streak_issue:
+    #     issues_detected = True
+    #     cv2.putText(vis, "Color Streak", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 1,
+    #                 (0, 0, 255), 2)
+
+
+    # if debug:
+    #     cv2.imshow("Detected Artifacts", cv2.resize(vis, (800, int(800 * image.shape[0] / image.shape[1]))))
+    #     cv2.waitKey(0)
+    #     cv2.destroyAllWindows()
 
     if save_vis and output_dir:
         os.makedirs(output_dir, exist_ok=True)
