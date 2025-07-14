@@ -17,3 +17,6 @@ tmp/*.png
 review/*.png
 review/*.jpg
 channel_histogram_*.jpg.png
+masks/*.jpg
+masks/*.png
+bad_bands.png
