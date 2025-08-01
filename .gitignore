@@ -20,3 +20,10 @@ channel_histogram_*.jpg.png
 masks/*.jpg
 masks/*.png
 bad_bands.png
+red_artifacts_mask_scan0283.jpg.png
+tmp/masks/*.png
+histograms/
+masks/
+qc_overlays/
+image_quality.csv
+models/artifact_net.pth

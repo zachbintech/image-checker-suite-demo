@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 import os
 
+import file_util
+
 def detect_exposure(image_path, overexposure_thresh=0.95, underexposure_thresh=0.05, pixel_ratio_thresh=0.05):
     """
     Detect if an image is overexposed or underexposed.
@@ -54,23 +56,29 @@ def scan_and_copy(folder_path, temp_folder="temp_exposure"):
     for category in categories:
         os.makedirs(os.path.join(temp_folder, category), exist_ok=True)
 
-    for filename in os.listdir(folder_path):
-        if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff')):
-            image_path = os.path.join(folder_path, filename)
+    print(f"Scanning folder: {folder_path}")
+    print(os.listdir(folder_path))
+
+    files = file_util.get_all_image_paths_recursive(folder_path)
+
+
+    for file in files:
+        if file.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff')):
             try:
-                status = detect_exposure(image_path)
-                print(f"{filename}: {status}")
+                status = detect_exposure(file)
+                print(f"{file}: {status}")
 
                 # Define destination path
-                dest_path = os.path.join(temp_folder, status, filename)
+                dest_path = os.path.join(temp_folder, status, file.split(os.sep)[-1])
 
                 # Copy the file
-                shutil.copy2(image_path, dest_path)
+                shutil.copy2(file, dest_path)
 
             except Exception as e:
-                print(f"Error processing {filename}: {e}")
+                print(f"Error processing {file}: {e}")
 
 
 if __name__ == "__main__":
-    folder = input("Enter the path to the image folder: ")
+    # folder = input("Enter the path to the image folder: ")
+    folder = "/home/zach/Desktop/PhotoData"
     scan_and_copy(folder)

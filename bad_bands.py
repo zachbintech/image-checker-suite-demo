@@ -116,6 +116,9 @@ def generate_artifact_map(image_path, patch_size=128, stride=64, threshold=None)
 
     # Read the image in color
     img_color = cv2.imread(image_path, cv2.IMREAD_COLOR)
+    if img_color is None:
+        print(f"Warning: Could not read image {image_path}. Skipping.")
+        return
 
     # Extract the red channel (index 2 in BGR)
     red_channel = img_color[:, :, 2]
@@ -132,61 +135,105 @@ def generate_artifact_map(image_path, patch_size=128, stride=64, threshold=None)
 
     img = cv2.imread(image_path).astype(np.float32)
     red_mask = get_red_mask(image_path, img)  
-
-    cv2.imwrite(f"red_artifacts_mask_{os.path.basename(image_path)}.png", red_mask)
+    save_artifact_mask(image_path, red_mask)
 
     # Vertically stack the color image and the red mask
     img_color = cv2.imread(image_path, cv2.IMREAD_COLOR)
     red_mask_bgr = cv2.cvtColor(red_mask, cv2.COLOR_GRAY2BGR)
     stacked = cv2.vconcat([img_color, red_mask_bgr])
-    os.makedirs("masks", exist_ok=True)  # <-- Add this line
-
+    os.makedirs("masks", exist_ok=True)
     stacked_path = os.path.join("masks", f"color_and_redmask_{os.path.basename(image_path)}")
     cv2.imwrite(stacked_path, stacked)
 
+    detect_scanner_artifacts(red_mask, show_debug=False)
 
-    ### ADD THIS ALL BACK TO FUNCTION
-
-
-""" START OF OLD CODE
-    # # Then pass the red channel to your artifact detection function
-    heatmap, mask = sliding_fft_artifact_map(red_channel, patch_size=patch_size, stride=stride, threshold=threshold)
-
-
-    # # Save the heatmap and mask in the tmp directory
-    # heatmap_path = os.path.join(tmp_dir, f"artifact_heatmap_{os.path.basename(image_path)}")
-    # cv2.imwrite(heatmap_path, (heatmap * 255).astype(np.uint8))
-    # if mask is not None:
-    #     mask_path = os.path.join(tmp_dir, f"artifact_mask_{os.path.basename(image_path)}")
-    #     cv2.imwrite(mask_path, mask)
-
-    # img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+def save_artifact_mask(image_path, red_mask):
+    mask_output_dir = os.path.join("tmp", "masks")
+    os.makedirs(mask_output_dir, exist_ok=True)
+    cv2.imwrite(os.path.join(mask_output_dir, f"red_artifacts_mask_{os.path.basename(image_path)}.png"), red_mask)
 
 
-    # # Combine original image and heatmap horizontally
-    # heatmap_color = cv2.applyColorMap((heatmap * 255).astype(np.uint8), cv2.COLORMAP_JET)
-    # combined = cv2.hconcat([cv2.cvtColor(img, cv2.COLOR_GRAY2BGR), heatmap_color])
+def detect_scanner_artifacts(binary_img: np.ndarray,
+                              show_debug: bool = True,
+                              component_thresh: dict = None,
+                              stripe_thresh: dict = None):
+    """
+    Detects two types of artifacts in a binary image:
+    1. Clustered vertical banding (connected component analysis).
+    2. Vertical stripe artifacts with horizontal ripple (sliding window).
 
-    # # Save the combined image in the tmp directory
-    # combined_path = os.path.join(tmp_dir, f"combined_artifact_{os.path.basename(image_path)}")
-    # cv2.imwrite(combined_path, combined)
-    # print(f"Saved combined image: {combined_path}")
+    Args:
+        binary_img (np.ndarray): Binary (thresholded) image, 8-bit.
+        show_debug (bool): Whether to show a visual output.
+        component_thresh (dict): Tuning thresholds for component filtering.
+        stripe_thresh (dict): Tuning thresholds for stripe detection.
 
-    # # Check edges for significant red regions
-    # edge_threshold = 0.4  # Deep red threshold (normalized intensity)
-    # edge_width = 25  # Number of pixels to check near the edges
-    # significant_red_ratio = 0.1  # Minimum ratio of red pixels to flag for review
+    Returns:
+        dict: Contains detected regions and types.
+    """
+    if component_thresh is None:
+        component_thresh = {
+            "min_aspect_ratio": 2.0,
+            "min_density": 0.3,
+            "max_height": 100,
+        }
 
-    # # Extract edge regions
-    extract_all_edge_regions(edge_width=25, heatmap=heatmap)
+    if stripe_thresh is None:
+        stripe_thresh = {
+            "window_width": 20,
+            "step_size": 5,
+            "min_variation": 20,
+            "min_density": 5,
+        }
 
-    
+    artifacts = {
+        "component_clusters": [],
+        "vertical_stripes": []
+    }
 
-    # # Save to review folder if significant red regions are detected
-    save_for_review_if_over_thresh(image_path)
+    h, w = binary_img.shape
+    binary = binary_img.copy()
 
-    END OF OLD CODE
-    """ 
+    # --- Step 1: Connected Component Analysis ---
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(binary)
+
+    for i in range(1, num_labels):  # skip background
+        x, y, bw, bh, area = stats[i]
+        aspect = bw / bh if bh != 0 else 0
+        density = area / (bw * bh) if bw * bh != 0 else 0
+
+        if (aspect > component_thresh["min_aspect_ratio"] and
+            density > component_thresh["min_density"] and
+            bh < component_thresh["max_height"]):
+            artifacts["component_clusters"].append((x, y, bw, bh))
+
+    # --- Step 2: Vertical Stripe Analysis ---
+    win_w = stripe_thresh["window_width"]
+    step = stripe_thresh["step_size"]
+    for x in range(0, w - win_w, step):
+        window = binary[:, x:x + win_w]
+        row_sums = np.sum(window == 255, axis=1)
+        row_std = np.std(row_sums)
+        density = np.mean(row_sums) / win_w
+
+        if row_std > stripe_thresh["min_variation"] and density > stripe_thresh["min_density"]:
+            artifacts["vertical_stripes"].append((x, 0, win_w, h))
+
+    # --- Debug visualization ---
+    if show_debug:
+        output = cv2.cvtColor(binary, cv2.COLOR_GRAY2BGR)
+        for (x, y, bw, bh) in artifacts["component_clusters"]:
+            cv2.rectangle(output, (x, y), (x + bw, y + bh), (0, 255, 0), 2)
+        for (x, y, bw, bh) in artifacts["vertical_stripes"]:
+            cv2.rectangle(output, (x, y), (x + bw, y + bh), (0, 0, 255), 2)
+
+        cv2.imshow("Detected Artifacts", output)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+    return artifacts
+
+  
 
 def get_red_mask(image_path, img):
     b, g, r = cv2.split(img)
@@ -257,7 +304,7 @@ def process_directory(directory_path, patch_size=128, stride=64, threshold=0.3):
                 generate_artifact_map(image_path, patch_size, stride, threshold)
 
 # Example usage:
-process_directory("real_images", patch_size=128, stride=64, threshold=0.3)
+process_directory("/home/zach/Desktop/PhotoData", patch_size=128, stride=64, threshold=0.3)
 
 
 
@@ -279,4 +326,3 @@ def save_heatmap_legend(output_path="heatmap_legend.png"):
     print(f"Saved heatmap legend: {output_path}")
 
 # Example usage:
-save_heatmap_legend()

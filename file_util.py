@@ -23,5 +23,10 @@ def load_images_from_directory(directory_path):
 
 # Example usage
 
-directory_path = "./similar_images"  # Replace with the path to your image directory
-images = load_images_from_directory(directory_path)
+def get_all_image_paths_recursive(root_dir):
+    image_paths = []
+    for dirpath, _, filenames in os.walk(root_dir):
+        for f in filenames:
+            if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif')):
+                image_paths.append(os.path.join(dirpath, f))
+    return image_paths
