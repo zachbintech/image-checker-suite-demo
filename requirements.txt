@@ -6,3 +6,4 @@ torch
 torchvision
 numpy
 scikit-learn
+timm
