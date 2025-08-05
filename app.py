@@ -1,7 +1,6 @@
 from basic_image_quality import detect_blur
 from face_detection import detect_faces
 from image_utilities import dummy_crop, load_image
-from similar.similar import group_similar_images_in_memory
 import streamlit as st
 import cv2
 import numpy as np
