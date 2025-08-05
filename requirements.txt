@@ -2,9 +2,7 @@ streamlit
 Pillow
 opencv-python-headless
 ImageHash
-
 torch
 torchvision
-streamlit
 numpy
-# add any other dependencies your app needs
+scikit-learn
