@@ -1,7 +1,7 @@
 from basic_image_quality import detect_blur
 from face_detection import detect_faces
 from image_utilities import dummy_crop, load_image
-from similar import group_similar_images_in_memory
+from similar.similar import group_similar_images_in_memory
 import streamlit as st
 import cv2
 import numpy as np
@@ -105,8 +105,6 @@ def similar_section():
             key="similarity"
         )
 
-        if similarity_files:
-            get_similar_images_and_display(similarity_files, threshold_matches)
 
 similar_section()
 
