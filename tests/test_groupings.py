@@ -84,9 +84,9 @@ class TestEvaluateGroupings(unittest.TestCase):
             export_grouped_images(groups, output_dir)
             mock_print.assert_any_call(f"⚠️ Could not copy /nonexistent/path.jpg: [Errno 2] No such file or directory: '/nonexistent/path.jpg'")
 
-    @patch("evaluate_groupings.process_and_group_images_recursive")
-    @patch("evaluate_groupings.export_grouped_images")
-    @patch("evaluate_groupings.summarize_grouping")
+    @patch("similar.evaluate_groupings.process_and_group_images_recursive")
+    @patch("similar.evaluate_groupings.export_grouped_images")
+    @patch("similar.evaluate_groupings.summarize_grouping")
     def test_evaluate_image_grouping_calls(self, mock_summarize, mock_export, mock_process):
         mock_process.return_value = [["a.jpg"], ["b.jpg", "c.jpg"]]
         evaluate_image_grouping("indir", 5, "outdir")

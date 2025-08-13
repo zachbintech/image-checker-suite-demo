@@ -22,4 +22,10 @@ streamlit run app.py
  
  # Test real image groupings. This function will group into large number of folders. 
  # This is the most recent function that groups similar images.
- python /home/zach/Documents/dev/image-checker-suite-demo/evaluate_groupsing.py
+ python evaluate_groupsing.py
+
+
+ # This is the function that currently runs to detect artifacting in images. It currently only looks at Red Channels. Need to add looking at green and blue.
+ python artifacts/bad_bands.py 
+
+

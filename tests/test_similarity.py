@@ -4,7 +4,7 @@ import numpy as np
 import os
 import shutil
 
-from similar.similar import (
+from similar import (
     get_hash_difference,
     process_and_group_images,
     find_duplicate_images_in_directory,

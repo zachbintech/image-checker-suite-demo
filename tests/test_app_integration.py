@@ -95,7 +95,7 @@ class TestAppIntegration(unittest.TestCase):
     def test_similarity_module_integration(self):
         """Test integration with similarity detection modules"""
         try:
-            from similar.similar import get_hash_difference
+            from similar import get_hash_difference
             
             # Create two identical images
             image1 = self.test_image.copy()

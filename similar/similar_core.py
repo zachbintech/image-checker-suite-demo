@@ -5,24 +5,14 @@ import shutil
 from PIL import Image
 import imagehash
 import torch
-from PIL import Image
 from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
-import os
-from similar.dino_embeddings import compute_embedding  # Import the function from dino_embedding.py
-
-import os
-import cv2
-import torch
-import numpy as np
-from PIL import Image
-import imagehash
-from sklearn.metrics.pairwise import cosine_similarity
+try:
+    from .dino_embeddings import compute_embedding
+except ImportError:
+    from dino_embeddings import compute_embedding
 # Optional PCA support
 # from sklearn.decomposition import PCA
 # from sklearn.preprocessing import normalize
-
-from similar.dino_embeddings import compute_embedding  # Import your DINOv2 embedding function
 
 
 sift = cv2.SIFT_create()
@@ -100,23 +90,39 @@ def get_hash_difference(image1, image2):
 
 
 
-def compute_and_store_hashes(image_dir):
+def compute_and_store_hashes(input_param):
     """
-    Compute and store perceptual hashes for all images in a directory.
-
+    Compute and store perceptual hashes for images.
+    
     Args:
-        image_dir (str): Path to the directory containing images.
-
+        input_param (str or list): Either a directory path or list of image file paths.
+    
     Returns:
-        dict: A dictionary where keys are image file names and values are their perceptual hashes.
+        dict: A dictionary mapping image paths/names to their perceptual hashes.
     """
     hashes = {}
-    for filename in os.listdir(image_dir):
-        file_path = os.path.join(image_dir, filename)
-        if os.path.isfile(file_path) and filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff')):
-            image = cv2.imread(file_path)
-            pil_image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-            hashes[filename] = imagehash.phash(pil_image)
+    
+    if isinstance(input_param, str):
+        # Directory path provided
+        for filename in os.listdir(input_param):
+            file_path = os.path.join(input_param, filename)
+            if os.path.isfile(file_path) and filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff')):
+                try:
+                    image = cv2.imread(file_path)
+                    if image is not None:
+                        pil_image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+                        hashes[filename] = imagehash.phash(pil_image)
+                except Exception as e:
+                    print(f"Warning: Could not process {file_path}: {e}")
+    else:
+        # List of image paths provided
+        for path in input_param:
+            try:
+                pil_image = Image.open(path)
+                hashes[path] = imagehash.phash(pil_image)
+            except Exception as e:
+                print(f"Warning: Could not process {path}: {e}")
+    
     return hashes
 
 
@@ -125,77 +131,7 @@ def group_images_by_hash(hashes, threshold=5):
     Group images based on perceptual hash differences.
 
     Args:
-        hashes (dict): A dictionary where keys are image file names and values are their perceptual hashes.
-        threshold (int): Maximum Hamming distance to consider images as similar.
-
-    Returns:
-        list: Groups of similar images, where each group is a list of image file names.
-    """
-    groups = []
-    visited = set()
-
-    for image1, hash1 in hashes.items():
-        if image1 in visited:
-            continue
-        group = [image1]
-        visited.add(image1)
-        for image2, hash2 in hashes.items():
-            if image2 in visited:
-                continue
-            if abs(hash1 - hash2) <= threshold:
-                group.append(image2)
-                visited.add(image2)
-        groups.append(group)
-
-    return groups
-
-import os
-
-def process_and_group_images(directory, threshold=5):
-    """
-    Compute hashes for images in a directory and group them by similarity.
-
-    Args:
-        directory (str): Path to the directory containing images.
-        threshold (int): Threshold for grouping similar images.
-
-    Returns:
-        list: A list of groups, where each group is a list of image filenames.
-    """
-    if not os.path.isdir(directory):
-        raise ValueError(f"The provided path '{directory}' is not a valid directory.")
-
-    # Compute hashes and group images
-    hashes = compute_and_store_hashes(directory)
-    groups = group_images_by_hash(hashes, threshold=threshold)
-    return groups
-
-
-
-
-def compute_and_store_hashes(image_paths):
-    """
-    Compute perceptual hashes (phash) for each image.
-
-    Args:
-        image_paths (list): List of image file paths.
-
-    Returns:
-        dict: A dictionary mapping image paths to their phash.
-    """
-    hashes = {}
-    for path in image_paths:
-        pil_image = Image.open(path)
-        hashes[path] = imagehash.phash(pil_image)
-    return hashes
-
-
-def group_images_by_hash(hashes, threshold=5):
-    """
-    Group images based on perceptual hash differences.
-
-    Args:
-        hashes (dict): Mapping from image paths to phashes.
+        hashes (dict): Mapping from image paths/names to phashes.
         threshold (int): Maximum Hamming distance to group images.
 
     Returns:
@@ -217,6 +153,26 @@ def group_images_by_hash(hashes, threshold=5):
                 visited.add(image2)
         groups.append(group)
 
+    return groups
+
+
+def process_and_group_images(directory, threshold=5):
+    """
+    Compute hashes for images in a directory and group them by similarity.
+
+    Args:
+        directory (str): Path to the directory containing images.
+        threshold (int): Threshold for grouping similar images.
+
+    Returns:
+        list: A list of groups, where each group is a list of image filenames.
+    """
+    if not os.path.isdir(directory):
+        raise ValueError(f"The provided path '{directory}' is not a valid directory.")
+
+    # Compute hashes and group images
+    hashes = compute_and_store_hashes(directory)
+    groups = group_images_by_hash(hashes, threshold=threshold)
     return groups
 
 
@@ -297,42 +253,33 @@ def find_duplicate_images_in_directory(directory_path, hash_threshold=5, similar
     # Step 5: Compute DINOv2 embeddings
     embeddings = compute_image_embeddings(unique_images)
 
-    # (Optional) PCA normalization - uncomment to use
-    # vectors = np.vstack(list(embeddings.values()))
-    # pca = PCA(n_components=100).fit_transform(vectors)
-    # normalized = normalize(pca)
-    # embeddings = {k: normalized[i] for i, k in enumerate(embeddings)}
-
     # Step 6: Compute cosine similarities
     similarities = compute_cosine_similarities(embeddings, similarity_threshold)
 
     return similarities
 
 
-
-
 def get_all_image_paths_recursive(root_dir):
+    """Get all image paths recursively from a directory."""
     image_paths = []
     for dirpath, _, filenames in os.walk(root_dir):
         for f in filenames:
-            if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif')):
+            # Skip hidden files and macOS metadata files
+            if f.startswith('.'):
+                    continue
+
+            if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tiff')):
                 image_paths.append(os.path.join(dirpath, f))
     return image_paths
 
 
 def compute_and_store_hashes_from_paths(image_paths):
-    hashes = {}
-    for path in image_paths:
-        image = cv2.imread(path)
-        if image is not None:
-            pil_image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-            hashes[path] = imagehash.phash(pil_image)
-    return hashes
+    """Backward compatibility function - use compute_and_store_hashes instead."""
+    return compute_and_store_hashes(image_paths)
 
 
 def process_and_group_images_recursive(directory, threshold=5):
+    """Process and group images recursively through subdirectories."""
     image_paths = get_all_image_paths_recursive(directory)
-    hashes = compute_and_store_hashes_from_paths(image_paths)
+    hashes = compute_and_store_hashes(image_paths)
     return group_images_by_hash(hashes, threshold)
-
-    
