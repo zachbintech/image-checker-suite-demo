@@ -9,7 +9,7 @@ from PIL import Image
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 import os
-from dino_embeddings import compute_embedding  # Import the function from dino_embedding.py
+from similar.dino_embeddings import compute_embedding  # Import the function from dino_embedding.py
 
 import os
 import cv2
@@ -22,7 +22,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 # from sklearn.decomposition import PCA
 # from sklearn.preprocessing import normalize
 
-from dino_embeddings import compute_embedding  # Import your DINOv2 embedding function
+from similar.dino_embeddings import compute_embedding  # Import your DINOv2 embedding function
 
 
 sift = cv2.SIFT_create()

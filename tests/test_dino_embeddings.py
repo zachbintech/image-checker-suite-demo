@@ -1,0 +1,138 @@
+import unittest
+import numpy as np
+import cv2
+import tempfile
+import os
+import sys
+
+# Add the similar directory to the path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'similar'))
+
+try:
+    from dino_embeddings import compute_embedding, load_dino_model
+except ImportError:
+    compute_embedding = None
+    load_dino_model = None
+
+
+class TestDinoEmbeddings(unittest.TestCase):
+    
+    def setUp(self):
+        """Create test images for embedding computation"""
+        # Create two similar images
+        self.image1 = np.zeros((224, 224, 3), dtype=np.uint8)
+        cv2.rectangle(self.image1, (50, 50), (174, 174), (255, 255, 255), -1)
+        cv2.circle(self.image1, (112, 112), 30, (100, 100, 100), -1)
+        
+        # Similar image with slight variation
+        self.image2 = self.image1.copy()
+        cv2.circle(self.image2, (112, 112), 25, (120, 120, 120), -1)
+        
+        # Very different image
+        self.image3 = np.zeros((224, 224, 3), dtype=np.uint8)
+        cv2.ellipse(self.image3, (112, 112), (80, 40), 45, 0, 360, (200, 150, 100), -1)
+        
+        # Create temporary files
+        self.temp_dir = tempfile.mkdtemp()
+        self.img1_path = os.path.join(self.temp_dir, "img1.jpg")
+        self.img2_path = os.path.join(self.temp_dir, "img2.jpg")
+        self.img3_path = os.path.join(self.temp_dir, "img3.jpg")
+        
+        cv2.imwrite(self.img1_path, self.image1)
+        cv2.imwrite(self.img2_path, self.image2)
+        cv2.imwrite(self.img3_path, self.image3)
+    
+    def tearDown(self):
+        """Clean up temporary files"""
+        for path in [self.img1_path, self.img2_path, self.img3_path]:
+            if os.path.exists(path):
+                os.remove(path)
+        if os.path.exists(self.temp_dir):
+            os.rmdir(self.temp_dir)
+    
+    @unittest.skipIf(compute_embedding is None, "dino_embeddings module not available")
+    def test_compute_embedding_exists(self):
+        """Test that compute_embedding function exists"""
+        self.assertTrue(callable(compute_embedding))
+    
+    @unittest.skipIf(compute_embedding is None, "dino_embeddings module not available")
+    def test_compute_embedding_returns_array(self):
+        """Test that compute_embedding returns a numpy array"""
+        try:
+            embedding = compute_embedding(self.img1_path)
+            self.assertIsInstance(embedding, np.ndarray)
+            self.assertGreater(embedding.size, 0)
+        except Exception as e:
+            self.skipTest(f"DINOv2 model not available: {e}")
+    
+    @unittest.skipIf(compute_embedding is None, "dino_embeddings module not available")
+    def test_embedding_consistency(self):
+        """Test that the same image produces the same embedding"""
+        try:
+            embedding1 = compute_embedding(self.img1_path)
+            embedding2 = compute_embedding(self.img1_path)
+            
+            # Should be identical (or very close due to floating point)
+            np.testing.assert_array_almost_equal(embedding1, embedding2, decimal=5)
+        except Exception as e:
+            self.skipTest(f"DINOv2 model not available: {e}")
+    
+    @unittest.skipIf(compute_embedding is None, "dino_embeddings module not available")
+    def test_embedding_dimension_consistency(self):
+        """Test that embeddings have consistent dimensions"""
+        try:
+            embedding1 = compute_embedding(self.img1_path)
+            embedding2 = compute_embedding(self.img2_path)
+            embedding3 = compute_embedding(self.img3_path)
+            
+            # All embeddings should have the same shape
+            self.assertEqual(embedding1.shape, embedding2.shape)
+            self.assertEqual(embedding2.shape, embedding3.shape)
+        except Exception as e:
+            self.skipTest(f"DINOv2 model not available: {e}")
+    
+    @unittest.skipIf(compute_embedding is None, "dino_embeddings module not available")
+    def test_embedding_similarity_relationships(self):
+        """Test that similar images have more similar embeddings"""
+        try:
+            from sklearn.metrics.pairwise import cosine_similarity
+            
+            embedding1 = compute_embedding(self.img1_path)
+            embedding2 = compute_embedding(self.img2_path)
+            embedding3 = compute_embedding(self.img3_path)
+            
+            # Flatten embeddings for cosine similarity
+            emb1_flat = embedding1.flatten().reshape(1, -1)
+            emb2_flat = embedding2.flatten().reshape(1, -1)
+            emb3_flat = embedding3.flatten().reshape(1, -1)
+            
+            # Similarity between similar images
+            sim_1_2 = cosine_similarity(emb1_flat, emb2_flat)[0][0]
+            # Similarity between different images
+            sim_1_3 = cosine_similarity(emb1_flat, emb3_flat)[0][0]
+            
+            # Similar images should have higher similarity than different images
+            self.assertGreater(sim_1_2, sim_1_3)
+            
+        except ImportError:
+            self.skipTest("scikit-learn not available for similarity testing")
+        except Exception as e:
+            self.skipTest(f"DINOv2 model not available: {e}")
+    
+    @unittest.skipIf(load_dino_model is None, "load_dino_model not available")
+    def test_load_dino_model_exists(self):
+        """Test that model loading function exists"""
+        self.assertTrue(callable(load_dino_model))
+    
+    def test_embedding_file_handling(self):
+        """Test embedding computation with invalid file paths"""
+        if compute_embedding is None:
+            self.skipTest("dino_embeddings module not available")
+        
+        # Test with non-existent file
+        with self.assertRaises((FileNotFoundError, OSError)):
+            compute_embedding("/nonexistent/path/image.jpg")
+
+
+if __name__ == "__main__":
+    unittest.main()

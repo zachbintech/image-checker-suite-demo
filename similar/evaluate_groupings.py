@@ -1,6 +1,6 @@
 import os
 import shutil
-from similar import process_and_group_images_recursive
+from similar.similar import process_and_group_images_recursive
 
 
 def summarize_grouping(groups):

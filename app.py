@@ -1,5 +1,4 @@
-from basic_image_quality import detect_blur
-from face_detection import detect_faces
+from image_quality_checks.basic_image_quality import detect_blur
 from image_utilities import dummy_crop, load_image
 import streamlit as st
 import cv2
@@ -13,19 +12,41 @@ st.set_page_config(page_title="Smart Photo Digitization Demo", layout="centered"
 st.title("Photo-to-Digital ML Demo")
 
 # 1. Basic Image Quality Check (Blur / Exposure)
-def get_basic_image_quality_and_display(image):
+def get_basic_image_quality_and_display(image, blur_threshold=100):
     blur_score = detect_blur(image)
-    blur_label = "Good" if blur_score > 100 else "Blurry"
+    blur_label = "Good" if blur_score > blur_threshold else "Blurry"
     st.write(f"Blur Score: {blur_score:.2f} ({blur_label})")
 
 def basic_image_check_section(get_basic_image_quality_and_display):
-    with st.expander("1. Basic Image Quality Check (Blur / Exposure)", expanded=False):
+    with st.expander("1. Basic Image Quality Check (Blur / Exposure)", expanded=True):
+
+        threshold_blur = st.slider(
+            "Set blur threshold", 
+            min_value=10, 
+            max_value=300, 
+            value=100, 
+            step=5,
+            key="blur_slider",
+            help="Adjust the threshold to control how similar images need to be to be grouped."
+        )
+
+        threshold_exposure = st.slider(
+            "Set exposure threshold", 
+            min_value=10, 
+            max_value=300, 
+            value=100, 
+            step=5,
+            key="exposure_slider",
+            help="Adjust the threshold to control how similar images need to be to be grouped."
+        )
+
+
         basic_quality_files = st.file_uploader(
-        "Upload images for basic quality checks (blur, exposure)", 
-        type=["jpg", "jpeg", "png", "tiff"], 
-        accept_multiple_files=True,
-        key="basic_quality"
-    )
+            "Upload images for basic quality checks (blur, exposure)", 
+            type=["jpg", "jpeg", "png", "tiff"], 
+            accept_multiple_files=True,
+            key="basic_quality"
+        )
 
         if basic_quality_files:
             for uploaded_file in basic_quality_files:
@@ -34,38 +55,11 @@ def basic_image_check_section(get_basic_image_quality_and_display):
                 st.image(cv2.cvtColor(image, cv2.COLOR_BGR2RGB), use_container_width=True)
 
             # Blur Detection
-                get_basic_image_quality_and_display(image)
+                get_basic_image_quality_and_display(image, threshold_blur)
 
 basic_image_check_section(get_basic_image_quality_and_display)
 
-# 2. Face Detection
-def get_faces_and_display(uploaded_file):
-    image = load_image(uploaded_file)
-    st.image(cv2.cvtColor(image, cv2.COLOR_BGR2RGB), use_container_width=True)
-
-    # Face Detection
-    face_annotated, num_faces = detect_faces(image.copy())
-    st.image(cv2.cvtColor(face_annotated, cv2.COLOR_BGR2RGB), 
-             caption=f"{num_faces} face(s) detected", 
-             use_container_width=True)
-
-def face_detection_section(get_faces_and_display):
-    with st.expander("2. Face Detection", expanded=False):
-        face_detection_files = st.file_uploader(
-        "Upload images for face detection", 
-        type=["jpg", "jpeg", "png", "tiff"], 
-        accept_multiple_files=True,
-        key="face_detection"
-    )
-
-        if face_detection_files:
-            for uploaded_file in face_detection_files:
-                st.markdown(f"**Image: {uploaded_file.name}**")
-                get_faces_and_display(uploaded_file)
-
-face_detection_section(get_faces_and_display)
-
-# 3. Image Similarity
+# 2. Image Similarity
 def get_similar_images_and_display(similarity_files, threshold_matches):
     """
     Process uploaded images for similarity and display grouped results.
@@ -86,7 +80,7 @@ def get_similar_images_and_display(similarity_files, threshold_matches):
             st.write(f"- {image_name}")
 
 def similar_section():
-    with st.expander("3. Image Similarity Check", expanded=False):
+    with st.expander("2. Image Similarity Check", expanded=False):
         # Add a slider to adjust the threshold dynamically
         threshold_matches = st.slider(
             "Set similarity threshold", 
@@ -107,9 +101,9 @@ def similar_section():
 
 similar_section()
 
-# 4. Advanced Image Quality (Artifact Detection and Removal)
+# 3. Advanced Image Quality (Artifact Detection and Removal)
 def advanced_image_quality_section():
-    with st.expander("4. Advanced Image Quality (Artifact Detection and Removal)", expanded=False):
+    with st.expander("3. Advanced Image Quality (Artifact Detection and Removal)", expanded=False):
         advanced_quality_files = st.file_uploader(
         "Upload images for advanced quality checks", 
         type=["jpg", "jpeg", "png", "tiff"], 
