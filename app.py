@@ -1,5 +1,6 @@
 from image_quality_checks.basic_image_quality import detect_blur
 from image_utilities import dummy_crop, load_image
+from similarity_api import group_similar_images_by_embeddings, find_similar_pairs, compute_embeddings_for_uploaded_images, summarize_similarity_results
 import streamlit as st
 import cv2
 import numpy as np
@@ -60,9 +61,9 @@ def basic_image_check_section(get_basic_image_quality_and_display):
 basic_image_check_section(get_basic_image_quality_and_display)
 
 # 2. Image Similarity
-def get_similar_images_and_display(similarity_files, threshold_matches):
+def get_similar_images_and_display(similarity_files, similarity_threshold):
     """
-    Process uploaded images for similarity and display grouped results.
+    Process uploaded images for similarity using DINOv2 embeddings and display grouped results.
     """
     # Load images into memory as (name, image_array) tuples
     images = []
@@ -70,25 +71,55 @@ def get_similar_images_and_display(similarity_files, threshold_matches):
         image = load_image(uploaded_file)  # Convert to numpy array
         images.append((uploaded_file.name, image))
 
-    # Group similar images
-    groups = group_similar_images_in_memory(images, threshold_matches)
+    with st.spinner("Computing image embeddings and finding similarities..."):
+        # Compute embeddings and find similar pairs
+        embeddings = compute_embeddings_for_uploaded_images(images)
+        similar_pairs = find_similar_pairs(embeddings, similarity_threshold)
+        
+        # Group similar images
+        groups = group_similar_images_by_embeddings(images, similarity_threshold)
+        
+        # Get summary statistics
+        summary = summarize_similarity_results(groups, similar_pairs)
+
+    # Display results
+    st.markdown("### Similarity Detection Results")
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Groups", summary["total_groups"])
+    with col2:
+        st.metric("Similar Pairs Found", summary["similarity_pairs_count"])
+    with col3:
+        st.metric("Unique Images", summary["singleton_count"])
+
+    # Display similar pairs with scores
+    if similar_pairs:
+        st.markdown("### Similar Image Pairs")
+        for img1, img2, score in similar_pairs:
+            st.write(f"**{img1}** ↔ **{img2}** (similarity: {score:.3f})")
 
     # Display grouped images
-    for idx, group in enumerate(groups):
-        st.markdown(f"### Group {idx + 1}")
-        for image_name in group:
-            st.write(f"- {image_name}")
+    multi_groups = [group for group in groups if len(group) > 1]
+    if multi_groups:
+        st.markdown("### Image Groups")
+        for idx, group in enumerate(multi_groups):
+            st.markdown(f"**Group {idx + 1}** ({len(group)} images)")
+            for image_name in group:
+                st.write(f"- {image_name}")
+    else:
+        st.info("No similar image groups found with the current threshold.")
 
 def similar_section():
     with st.expander("2. Image Similarity Check", expanded=False):
-        # Add a slider to adjust the threshold dynamically
-        threshold_matches = st.slider(
+        # Add a slider to adjust the similarity threshold dynamically
+        similarity_threshold = st.slider(
             "Set similarity threshold", 
-            min_value=10, 
-            max_value=300, 
-            value=33, 
-            step=5,
-            help="Adjust the threshold to control how similar images need to be to be grouped."
+            min_value=0.0, 
+            max_value=1.0, 
+            value=0.8, 
+            step=0.05,
+            help="Cosine similarity threshold (0.0-1.0). Higher values = more strict similarity."
         )
 
         similarity_files = st.file_uploader(
@@ -97,6 +128,13 @@ def similar_section():
             accept_multiple_files=True,
             key="similarity"
         )
+
+        if similarity_files and len(similarity_files) > 1:
+            get_similar_images_and_display(similarity_files, similarity_threshold)
+        elif similarity_files and len(similarity_files) == 1:
+            st.info("Upload at least 2 images to detect similarities.")
+        else:
+            st.info("Upload images to begin similarity detection.")
 
 
 similar_section()

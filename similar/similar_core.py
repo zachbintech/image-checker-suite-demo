@@ -180,7 +180,7 @@ def compute_image_embeddings(image_paths):
     """
     Compute DINOv2 embeddings for a list of image paths.
 
-    Args:
+    Args:https://docs.google.com/spreadsheets/d/1W_sQ0feOFNVMglV-qYz-hV_jxt2YNDzQr0GEfDmF4dQ/edit?usp=sharing
         image_paths (list): List of image file paths.
 
     Returns:
