@@ -12,8 +12,7 @@ grouped_output/**
 real_images/multiple_photo/*.jpg
 report.csv
 artifact_overlays/*.jpg
-tmp/*.jpg
-tmp/*.png
+tmp/
 review/*.png
 review/*.jpg
 channel_histogram_*.jpg.png
