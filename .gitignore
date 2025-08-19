@@ -26,7 +26,7 @@ histograms/
 masks/
 qc_overlays/
 image_quality.csv
-models/artifact_net.pth
+*.pth
 artifacts/artifact_overlays/*.jpg
 image_quality_checks/temp_exposure/normal/*.jpg
 image_quality_checks/temp_exposure/
