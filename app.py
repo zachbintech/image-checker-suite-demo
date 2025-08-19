@@ -1,4 +1,5 @@
 from image_quality_checks.basic_image_quality import detect_blur
+from image_quality_checks.exposure import detect_exposure
 from image_utilities import dummy_crop, load_image
 from similarity_api import group_similar_images_by_embeddings, find_similar_pairs, compute_embeddings_for_uploaded_images, summarize_similarity_results
 import streamlit as st
@@ -13,10 +14,54 @@ st.set_page_config(page_title="Smart Photo Digitization Demo", layout="centered"
 st.title("Photo-to-Digital ML Demo")
 
 # 1. Basic Image Quality Check (Blur / Exposure)
-def get_basic_image_quality_and_display(image, blur_threshold=100):
+def detect_exposure_from_array(image, overexposure_thresh=0.95, underexposure_thresh=0.05, pixel_ratio_thresh=0.05):
+    """
+    Detect if an image array is overexposed or underexposed.
+    
+    Args:
+        image (numpy.ndarray): Image array (BGR format from OpenCV).
+        overexposure_thresh (float): Pixel brightness threshold for overexposure (0.0-1.0).
+        underexposure_thresh (float): Pixel brightness threshold for underexposure (0.0-1.0).
+        pixel_ratio_thresh (float): Fraction of total pixels allowed to trigger a warning.
+    
+    Returns:
+        tuple: (status, overexposed_ratio, underexposed_ratio)
+    """
+    # Convert to grayscale and normalize
+    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    normalized_image = gray_image / 255.0
+    
+    # Find very bright and very dark pixels
+    overexposed_pixels = np.sum(normalized_image > overexposure_thresh)
+    underexposed_pixels = np.sum(normalized_image < underexposure_thresh)
+    total_pixels = normalized_image.size
+    
+    overexposed_ratio = overexposed_pixels / total_pixels
+    underexposed_ratio = underexposed_pixels / total_pixels
+    
+    if overexposed_ratio > pixel_ratio_thresh:
+        return "overexposed", overexposed_ratio, underexposed_ratio
+    elif underexposed_ratio > pixel_ratio_thresh:
+        return "underexposed", overexposed_ratio, underexposed_ratio
+    else:
+        return "normal", overexposed_ratio, underexposed_ratio
+
+def get_basic_image_quality_and_display(image, blur_threshold=100, exposure_threshold=0.05):
     blur_score = detect_blur(image)
     blur_label = "Good" if blur_score > blur_threshold else "Blurry"
-    st.write(f"Blur Score: {blur_score:.2f} ({blur_label})")
+    
+    exposure_status, overexposed_ratio, underexposed_ratio = detect_exposure_from_array(
+        image, pixel_ratio_thresh=exposure_threshold
+    )
+    
+    # Display metrics in columns
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write(f"**Blur Score:** {blur_score:.2f} ({blur_label})")
+    with col2:
+        st.write(f"**Exposure:** {exposure_status.title()}")
+        st.write(f"- Overexposed pixels: {overexposed_ratio:.1%}")
+        st.write(f"- Underexposed pixels: {underexposed_ratio:.1%}")
 
 def basic_image_check_section(get_basic_image_quality_and_display):
     with st.expander("1. Basic Image Quality Check (Blur / Exposure)", expanded=True):
@@ -33,12 +78,12 @@ def basic_image_check_section(get_basic_image_quality_and_display):
 
         threshold_exposure = st.slider(
             "Set exposure threshold", 
-            min_value=10, 
-            max_value=300, 
-            value=100, 
-            step=5,
+            min_value=0.01, 
+            max_value=0.20, 
+            value=0.05, 
+            step=0.01,
             key="exposure_slider",
-            help="Adjust the threshold to control how similar images need to be to be grouped."
+            help="Pixel ratio threshold for exposure detection (0.01-0.20). Lower values = more sensitive."
         )
 
 
@@ -55,8 +100,8 @@ def basic_image_check_section(get_basic_image_quality_and_display):
                 image = load_image(uploaded_file)
                 st.image(cv2.cvtColor(image, cv2.COLOR_BGR2RGB), use_container_width=True)
 
-            # Blur Detection
-                get_basic_image_quality_and_display(image, threshold_blur)
+            # Blur and Exposure Detection
+                get_basic_image_quality_and_display(image, threshold_blur, threshold_exposure)
 
 basic_image_check_section(get_basic_image_quality_and_display)
 
