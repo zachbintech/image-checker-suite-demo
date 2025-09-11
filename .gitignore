@@ -29,3 +29,5 @@ image_quality.csv
 artifacts/artifact_overlays/*.jpg
 image_quality_checks/temp_exposure/normal/*.jpg
 image_quality_checks/temp_exposure/
+mask_analysis_results/
+classifier_performance_test/

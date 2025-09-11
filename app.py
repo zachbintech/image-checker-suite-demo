@@ -184,21 +184,121 @@ def similar_section():
 
 similar_section()
 
-# 3. Advanced Image Quality (Artifact Detection and Removal)
-def advanced_image_quality_section():
-    with st.expander("3. Advanced Image Quality (Artifact Detection and Removal)", expanded=False):
+# 3. Artifact Highlighting (Red, Green, Blue Lines)
+def get_red_mask(img, threshold=1.5):
+    """Get red mask using ratio approach from bad_bands.py"""
+    b, g, r = cv2.split(img.astype(np.float32))
+    
+    # Avoid divide by zero
+    epsilon = 1e-6
+    r_ratio = r / (g + b + epsilon)
+    
+    # Threshold for "too red"
+    red_mask = (r_ratio > threshold).astype(np.uint8) * 255
+    return red_mask
+
+def get_green_mask(img, threshold=1.5):
+    """Get green mask using ratio approach from bad_bands.py"""
+    b, g, r = cv2.split(img.astype(np.float32))
+    
+    # Avoid divide by zero
+    epsilon = 1e-6
+    g_ratio = g / (r + b + epsilon)
+    
+    # Threshold for "too green"
+    green_mask = (g_ratio > threshold).astype(np.uint8) * 255
+    return green_mask
+
+def get_blue_mask(img, threshold=1.5):
+    """Get blue mask using ratio approach from bad_bands.py"""
+    b, g, r = cv2.split(img.astype(np.float32))
+    
+    # Avoid divide by zero
+    epsilon = 1e-6
+    b_ratio = b / (r + g + epsilon)
+    
+    # Threshold for "too blue"
+    blue_mask = (b_ratio > threshold).astype(np.uint8) * 255
+    return blue_mask
+
+def detect_red_lines(image, threshold=1.5):
+    """Detect red line artifacts using bad_bands.py approach."""
+    red_mask = get_red_mask(image, threshold)
+    
+    # Return binary mask (white artifacts on black background)
+    return red_mask, np.count_nonzero(red_mask)
+
+def detect_green_lines(image, threshold=1.5):
+    """Detect green line artifacts using bad_bands.py approach."""
+    green_mask = get_green_mask(image, threshold)
+    
+    # Return binary mask (white artifacts on black background)
+    return green_mask, np.count_nonzero(green_mask)
+
+def detect_blue_lines(image, threshold=1.5):
+    """Detect blue line artifacts using bad_bands.py approach."""
+    blue_mask = get_blue_mask(image, threshold)
+    
+    # Return binary mask (white artifacts on black background)
+    return blue_mask, np.count_nonzero(blue_mask)
+
+def artifact_highlighting_section():
+    with st.expander("3. Artifact Highlighting (Red, Green, Blue Lines)", expanded=False):
+        # Threshold control
+        threshold = st.slider(
+            "Color ratio threshold", 
+            min_value=1.0, 
+            max_value=3.0, 
+            value=1.5, 
+            step=0.1,
+            help="Ratio threshold from bad_bands.py (e.g., red/(green+blue) > threshold). Default 1.5 = 'too red'"
+        )
+
         advanced_quality_files = st.file_uploader(
-        "Upload images for advanced quality checks", 
-        type=["jpg", "jpeg", "png", "tiff"], 
-        accept_multiple_files=True,
-        key="advanced_quality"
-    )
+            "Upload images for artifact highlighting", 
+            type=["jpg", "jpeg", "png", "tiff"], 
+            accept_multiple_files=True,
+            key="advanced_quality"
+        )
 
         if advanced_quality_files:
-            st.warning("Artifact detection and removal functionality is not implemented yet.")
             for uploaded_file in advanced_quality_files:
-                st.markdown(f"**Uploaded: {uploaded_file.name}**")
+                st.markdown(f"**Image: {uploaded_file.name}**")
+                
+                # Load image
                 image = load_image(uploaded_file)
-                st.image(cv2.cvtColor(image, cv2.COLOR_BGR2RGB), use_container_width=True)
+                
+                # Detect artifacts for each color
+                red_mask, red_count = detect_red_lines(image, threshold)
+                green_mask, green_count = detect_green_lines(image, threshold)
+                blue_mask, blue_count = detect_blue_lines(image, threshold)
+                
+                # Display results
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.subheader("Original Image")
+                    st.image(cv2.cvtColor(image, cv2.COLOR_BGR2RGB), use_container_width=True)
+                
+                with col2:
+                    st.subheader("Red Artifacts Mask")
+                    st.image(red_mask, use_container_width=True, clamp=True)
+                    st.write(f"Red artifact pixels: {red_count}")
+                
+                col3, col4 = st.columns(2)
+                
+                with col3:
+                    st.subheader("Green Artifacts Mask") 
+                    st.image(green_mask, use_container_width=True, clamp=True)
+                    st.write(f"Green artifact pixels: {green_count}")
+                
+                with col4:
+                    st.subheader("Blue Artifacts Mask")
+                    st.image(blue_mask, use_container_width=True, clamp=True)
+                    st.write(f"Blue artifact pixels: {blue_count}")
+                
+                st.markdown("---")
+        else:
+            st.info("Upload images to begin artifact highlighting.")
 
-advanced_image_quality_section()
+artifact_highlighting_section()
