@@ -9,10 +9,11 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'similar'))
 
 try:
-    from dino_embeddings import compute_embedding, load_dino_model
+    from dino_embeddings import compute_embedding
+    compute_embedding_available = True
 except ImportError:
     compute_embedding = None
-    load_dino_model = None
+    compute_embedding_available = False
 
 
 class TestDinoEmbeddings(unittest.TestCase):
@@ -119,10 +120,15 @@ class TestDinoEmbeddings(unittest.TestCase):
         except Exception as e:
             self.skipTest(f"DINOv2 model not available: {e}")
     
-    @unittest.skipIf(load_dino_model is None, "load_dino_model not available")
-    def test_load_dino_model_exists(self):
-        """Test that model loading function exists"""
-        self.assertTrue(callable(load_dino_model))
+    @unittest.skipIf(not compute_embedding_available, "dino_embeddings module not available")
+    def test_model_can_compute_embeddings(self):
+        """Test that the model can compute embeddings"""
+        try:
+            embedding = compute_embedding(self.img1_path)
+            self.assertIsNotNone(embedding)
+            self.assertIsInstance(embedding, np.ndarray)
+        except Exception as e:
+            self.skipTest(f"DINOv2 model not available: {e}")
     
     def test_embedding_file_handling(self):
         """Test embedding computation with invalid file paths"""

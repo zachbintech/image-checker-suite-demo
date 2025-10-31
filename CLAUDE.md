@@ -8,24 +8,64 @@ This is a Smart Photo Digitization Demo - an image quality checking and similari
 
 ## Development Commands
 
-### Environment Setup
+### Docker Setup (Recommended)
+
+**Start the application:**
+```bash
+docker compose up
+# Or run in background: docker compose up -d
+```
+
+**Rebuild after changes:**
+```bash
+docker compose up --build
+```
+
+**Stop the application:**
+```bash
+docker compose down
+```
+
+**Run tests:**
+```bash
+docker compose run --rm app python3 -m unittest discover -s tests
+```
+
+**Test image groupings:**
+```bash
+docker compose run --rm app python /app/evaluate_groupsing.py
+```
+
+**Interactive development shell:**
+```bash
+docker compose --profile dev run --rm dev
+```
+
+**View logs:**
+```bash
+docker compose logs -f
+```
+
+### Local Environment Setup (Alternative)
+
+**Environment Setup:**
 ```bash
 python3 -m venv photoenv
 source photoenv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Running the Application
+**Running the Application:**
 ```bash
 streamlit run app.py
 ```
 
-### Running Tests
+**Running Tests:**
 ```bash
 python3 -m unittest discover -s tests
 ```
 
-### Test Image Groupings (Main functionality)
+**Test Image Groupings (Main functionality):**
 ```bash
 python /home/zach/Documents/dev/image-checker-suite-demo/evaluate_groupsing.py
 ```
