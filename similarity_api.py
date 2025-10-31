@@ -12,34 +12,42 @@ from similar.dino_embeddings import compute_embedding
 from typing import List, Tuple, Dict
 
 
-def compute_embeddings_for_uploaded_images(images: List[Tuple[str, np.ndarray]]) -> Dict[str, np.ndarray]:
+def compute_embeddings_for_uploaded_images(images: List[Tuple[str, np.ndarray]], verbose: bool = False) -> Dict[str, np.ndarray]:
     """
     Compute DINOv2 embeddings for uploaded images by saving them temporarily.
-    
+
     Args:
         images: List of (image_name, image_array) tuples
-        
+        verbose: If True, print progress for each image
+
     Returns:
         Dictionary mapping image names to their embedding vectors
     """
     embeddings = {}
     temp_files = []
-    
+    total_images = len(images)
+
     try:
         # Create temporary files for each image
-        for image_name, image_array in images:
+        for idx, (image_name, image_array) in enumerate(images, 1):
+            if verbose:
+                print(f"  [{idx}/{total_images}] Computing embedding for: {image_name}")
+
             # Create temporary file
             temp_fd, temp_path = tempfile.mkstemp(suffix='.jpg', prefix='streamlit_')
             temp_files.append((temp_fd, temp_path))
-            
+
             # Convert BGR to RGB and save
             rgb_image = cv2.cvtColor(image_array, cv2.COLOR_BGR2RGB)
             pil_image = Image.fromarray(rgb_image)
             pil_image.save(temp_path, 'JPEG')
-            
+
             # Compute embedding
             embedding = compute_embedding(temp_path)
             embeddings[image_name] = embedding
+
+            if verbose:
+                print(f"      ✓ Embedding computed (shape: {embedding.shape})")
             
     finally:
         # Clean up temporary files
@@ -51,6 +59,51 @@ def compute_embeddings_for_uploaded_images(images: List[Tuple[str, np.ndarray]])
                 pass
     
     return embeddings
+
+
+def build_groups_from_pairs(image_names: List[str], similar_pairs: List[Tuple[str, str, float]]) -> List[List[str]]:
+    """
+    Build groups from similar pairs using union-find approach.
+
+    Args:
+        image_names: List of all image names
+        similar_pairs: List of (image1_name, image2_name, similarity_score) tuples
+
+    Returns:
+        List of groups, where each group is a list of image names
+    """
+    groups = {}  # image_name -> group_id
+    group_members = {}  # group_id -> set of image_names
+    next_group_id = 0
+
+    # Initialize each image as its own group
+    for image_name in image_names:
+        groups[image_name] = next_group_id
+        group_members[next_group_id] = {image_name}
+        next_group_id += 1
+
+    # Merge groups based on similarity pairs
+    for name1, name2, similarity in similar_pairs:
+        group1 = groups[name1]
+        group2 = groups[name2]
+
+        if group1 != group2:
+            # Merge smaller group into larger group
+            if len(group_members[group1]) < len(group_members[group2]):
+                group1, group2 = group2, group1
+
+            # Update group assignments
+            for member in group_members[group2]:
+                groups[member] = group1
+
+            # Merge group members
+            group_members[group1].update(group_members[group2])
+            del group_members[group2]
+
+    # Convert to list of lists
+    result_groups = [list(members) for members in group_members.values()]
+
+    return result_groups
 
 
 def find_similar_pairs(embeddings: Dict[str, np.ndarray], similarity_threshold: float = 0.8) -> List[Tuple[str, str, float]]:

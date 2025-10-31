@@ -70,6 +70,73 @@ python3 -m unittest discover -s tests
 python /home/zach/Documents/dev/image-checker-suite-demo/evaluate_groupsing.py
 ```
 
+## Standalone Command-Line Scripts
+
+The project includes standalone scripts that can process entire directories of images without the Streamlit UI. These scripts use the same logic as the Streamlit app but are designed for batch processing and automation.
+
+### Image Quality Check Script
+
+Check blur and exposure for all images in a directory:
+
+```bash
+# Basic usage
+python check_image_quality.py <directory_path>
+
+# With custom thresholds
+python check_image_quality.py <directory_path> --blur-threshold 100 --exposure-threshold 0.05
+
+# Save results to JSON
+python check_image_quality.py <directory_path> --output results.json
+
+# Docker usage
+docker compose run --rm app python check_image_quality.py /path/to/images
+```
+
+**Output:** Displays blur score, blur status (good/blurry), exposure status (normal/overexposed/underexposed), and pixel ratios for each image.
+
+### Similarity Detection Script
+
+Find similar/duplicate images in a directory using DINOv2 embeddings:
+
+```bash
+# Basic usage
+python check_similarity.py <directory_path>
+
+# With custom similarity threshold
+python check_similarity.py <directory_path> --threshold 0.8
+
+# Save results to JSON
+python check_similarity.py <directory_path> --output results.json
+
+# Docker usage
+docker compose run --rm app python check_similarity.py /path/to/images
+```
+
+**Output:** Shows similar image pairs with scores, grouped similar images, and summary statistics.
+
+### Artifact Detection Script
+
+Detect color artifacts (red, green, blue lines) in images:
+
+```bash
+# Basic usage
+python check_artifacts.py <directory_path>
+
+# With custom threshold
+python check_artifacts.py <directory_path> --threshold 1.5
+
+# Save artifact masks to disk
+python check_artifacts.py <directory_path> --save-masks
+
+# Save results to JSON
+python check_artifacts.py <directory_path> --output results.json
+
+# Docker usage
+docker compose run --rm app python check_artifacts.py /path/to/images
+```
+
+**Output:** Displays artifact pixel counts for each color channel, total artifacts, and artifact percentage per image.
+
 ## Architecture Overview
 
 ### Core Application Structure
